@@ -70,6 +70,7 @@ from sp.db_models import (
     parse_table,
     parse_table_attribute,
     parse_table_attributes,
+    dbint
 )
 
 force_instant_defaults()
@@ -109,24 +110,22 @@ class Choice(Enum):
 
 
 class TestClass(BaseModel):
+    id: dbint = Field(primary_key=True)
     a: int
     b: List[int]
     c: TestSubClass
     d: List[TestSubClass]
     e: str = Field(values=Choice)
-
+    f: str = Field(values=Choice)
 
 test_parse_field_results = (
+    TableColumn(name="id", type_=MappedColumnTypes["dbint"].value, unique=False, kwargs={'primary_key': True}), 
     TableColumn(name="a", type_=MappedColumnTypes["int"].value, unique=False),
     SubTable(
         name="b",
         table=TableDef(
             name="b",
-            attributes=[
-                TableColumn(
-                    name="b", type_=MappedColumnTypes["int"].value, unique=False
-                )
-            ],
+            attributes=[TableColumn(name="b", type_=MappedColumnTypes["int"].value, unique=False)],
         ),
         relationship_type=RelationshipType.one_to_many,
     ),
@@ -141,17 +140,13 @@ test_parse_field_results = (
                         name="a",
                         attributes=[
                             TableColumn(
-                                name="a",
-                                type_=MappedColumnTypes["str"].value,
-                                unique=False,
+                                name="a", type_=MappedColumnTypes["str"].value, unique=False,
                             )
                         ],
                     ),
                     relationship_type=RelationshipType.one_to_many,
                 ),
-                TableColumn(
-                    name="b", type_=MappedColumnTypes["str"].value, unique=False
-                ),
+                TableColumn(name="b", type_=MappedColumnTypes["str"].value, unique=False),
             ],
         ),
         relationship_type=RelationshipType.one_to_one,
@@ -167,17 +162,13 @@ test_parse_field_results = (
                         name="a",
                         attributes=[
                             TableColumn(
-                                name="a",
-                                type_=MappedColumnTypes["str"].value,
-                                unique=False,
+                                name="a", type_=MappedColumnTypes["str"].value, unique=False,
                             )
                         ],
                     ),
                     relationship_type=RelationshipType.one_to_many,
                 ),
-                TableColumn(
-                    name="b", type_=MappedColumnTypes["str"].value, unique=False
-                ),
+                TableColumn(name="b", type_=MappedColumnTypes["str"].value, unique=False),
             ],
         ),
         relationship_type=RelationshipType.one_to_many,
@@ -186,8 +177,7 @@ test_parse_field_results = (
 
 
 @pytest.mark.parametrize(
-    "field, res",
-    list(zip(TestClass.__fields__.items(), test_parse_field_results)),
+    "field, res", list(zip(TestClass.__fields__.items(), test_parse_field_results)),
 )
 def test_parse_field(field, res):
     assert parse_field(*field) == res
@@ -204,19 +194,10 @@ def _test_table_def(name, attributes):
 def test_parse_table():
     assert parse_table(TestSimple) == TableDef(
         name="TestSimple",
-        attributes=[
-            TableColumn(
-                name="a", type_=MappedColumnTypes["int"].value, unique=False
-            )
-        ],
+        attributes=[TableColumn(name="a", type_=MappedColumnTypes["int"].value, unique=False)],
     )
-    assert parse_table(
-        ListField(name="test", type_=MappedColumnTypes["int"].value)
-    ) == TableDef(
-        name="test",
-        attributes=[
-            TableColumn(name="test", type_=MappedColumnTypes["int"].value)
-        ],
+    assert parse_table(ListField(name="test", type_=MappedColumnTypes["int"].value)) == TableDef(
+        name="test", attributes=[TableColumn(name="test", type_=MappedColumnTypes["int"].value)],
     )
 
 
@@ -282,18 +263,18 @@ def test_collect_tables():
 
 def test_create_models():
     models = create_models(
-        (TestClass,),
-        additional_options={"__table_args__": {"extend_existing": True}},
+        (TestClass,), additional_options={"__table_args__": {"extend_existing": True}},
     )
     assert tuple(c for c in models.models.keys()) == (
         "TestClass",
-        "TestClass_e_Choice",
+        "Choice",
         "TestClass_b",
         "TestClass_c",
         "TestClass_c_a",
         "TestClass_d",
         "TestClass_d_a",
     )
+
 
 class TestError(BaseModel):
     a: dict

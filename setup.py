@@ -2,15 +2,15 @@ from setuptools import find_packages, setup
 
 
 setup(
-    name="app",
-    version="1.0.2",
+    name="SQLALCHEMY-PYDANTIC",
+    version="0.0.7",
     plat_name="",
     packages=[ *find_packages(
         include=[
-            "app"
+            "sp"
         ]
     )],
-    url="https://stash.int.klarna.net/projects/DPF/repos/alps-core/browse",
+    url="https://https://github.com/NiklasMolin/sqlalchemy-pydantic",
     entry_points={
         "console_scripts": [
         ]

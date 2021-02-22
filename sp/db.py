@@ -1,22 +1,24 @@
 import os
 import sys
 from datetime import datetime
+from  enum import  Enum
 from functools import partial
 from typing import List, Tuple, Optional
 
 from returns.converters import flatten
 from returns.curry import partial
 from returns.functions import tap
-from returns.iterables import Fold
+#from returns.iterables import Fold
 from returns.pipeline import flow, pipe
 from returns.pointfree import bind, map_
 from returns.result import Failure, Result, Success, safe
 from sqlalchemy import Column, create_engine, select, table
-from sqlalchemy.orm import joinedload_all, raiseload, sessionmaker
+from sqlalchemy.orm import joinedload_all, raiseload, sessionmaker, joinedload
 from sqlalchemy.orm.query import Query
 from sqlalchemy.ext.declarative import DeclarativeMeta
 from sqlalchemy.inspection import inspect
 from sp.config import CONN_STR, CONN_ARGS
+
 SessionLocal = None
 
 
@@ -43,10 +45,11 @@ def add_db(model, data):
     import json
 
     print("Add data" + json.dumps(data, default=str))
-    value = model.from_dict(data)
+    values = [ model.from_dict(item) for item  in (data if isinstance(data, list) else [data])]
     # print("got db" + json.dumps(value.to_dict()))
     def _merge(_db):
-        _db.merge(value)
+        for value in  values:
+            _db.merge(value)
         _db.commit()
 
     return flow(get_db().bind(next), _merge)
@@ -79,9 +82,7 @@ def update_db(model, id, data, synchronize_session):
     syncronize false, to avoid selecting the row into state
     """
     db = next(get_db())
-    db.query(model).filter_by(id=id).update(
-        data, synchronize_session=synchronize_session
-    )
+    db.query(model).filter_by(id=id).update(data, synchronize_session=synchronize_session)
     db.commit()
 
 
@@ -103,32 +104,26 @@ def select_all_db(model, where=None):
 
 
 @safe
-def select_options(
-    model: DeclarativeMeta,
-) -> List[Tuple[str, List[Tuple[str, str]]]]:
+def select_options(model: DeclarativeMeta,) -> List[Tuple[str, List[Tuple[str, str]]]]:
     options_results: List[List[Tuple[str, str]]] = []
     options_names: List[str] = []
-    for fk in [
-        list(col.foreign_keys)
-        for col in inspect(model).columns
-        if col.foreign_keys
-    ]:
+    for fk in [list(col.foreign_keys) for col in inspect(model).columns if col.foreign_keys]:
         if len(fk) > 1:
-            raise Exception(
-                "Unsupported option, column in only allowed one fk reference"
-            )
+            raise Exception("Unsupported option, column in only allowed one fk reference")
         options_names.append(fk[0].parent.name)
-        options_results.append(flatten(select_option(fk[0].column)))
-    _zip = lambda x: zip(options_names, x)
-    return Fold.collect(options_results, Success(())).map(_zip)
-
+        options_results.append(flatten(select_option(model._decl_class_registry[fk[0].column.table.name])).unwrap())
+    _zip = lambda x: list(zip(options_names, x))
+    #return Fold.collect(options_results, Success(())).map(_zip).unwrap()
+    return zip(options_names, options_results)
 
 @safe
-def select_option(col: Column):
-    model: DeclarativeMeta = get_model_by_name(col.table.name)
-    # sqlalchemy.orm.attributes.InstrumentedAttribute
-    label = "label" if hasattr(model, "label") else col.name
+def select_option(model: DeclarativeMeta):
     _formatter = lambda res: [
-        {"key": getattr(k, col.name), "value": getattr(k, label)} for k in res
+        {"key": getattr(k, "key"), "value": getattr(k, "label")} for k in res
     ]
     return select_all_db(model).map(_formatter)
+
+@safe
+def add_option(model: DeclarativeMeta, option: Enum):
+    data = [{ "key":c.value, "label": c.name } for b,c  in option.__members__.items()]
+    return add_db(model, data)
